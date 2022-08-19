@@ -19,6 +19,7 @@ import javax.swing.BorderFactory;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JTable;
+import javax.swing.event.TableModelEvent;
 import javax.swing.event.TableModelListener;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.TableCellRenderer;
@@ -39,20 +40,27 @@ import javax.swing.AbstractAction;
 import java.awt.event.ActionEvent;
 import javax.swing.Action;
 import javax.swing.JTextField;
+import javax.swing.JPasswordField;
 
 public class GuiWIn {
 
 	private JFrame frame;
 	private JTable table;
-	String ip 		;
-	String tcpPort  ;
-	String user 	;
-	String pass 	;
-	String db_name	;
-	String url;//  = String.format("jdbc:mysql://%s:%s/%s",ip,tcpPort,db_name);
-	Statement st;// 	 = conn.createStatement();
-	Connection sqlConn;// = DriverManager.getConnection(url,user,pass);
-	ResultSet result;
+	//private String url;//  = String.format("jdbc:mysql://%s:%s/%s",ip,tcpPort,db_name);
+	private Connection sqlConn;// = DriverManager.getConnection(url,user,pass);
+	private Statement sqlSt;// 	 = conn.createStatement();
+	private ResultSet sqlResult;
+	private String[]   colNamesCache;
+	private String[][] dataCache;
+	private JTextField txtHost;
+	private JTextField txtPort;
+	private JTextField txtUser;
+	private JPasswordField txtPass;
+	private JTextField txtDB;
+	private final Action action = new SwingAction();
+	private final Action action_1 = new SwingAction_1();
+	private CustomTableModel tableModel;
+	private Thread sqlThread;
 
 	/**
 	 * Launch the application.
@@ -79,85 +87,28 @@ public class GuiWIn {
 	 */
 	public GuiWIn() {
 		initialize();
+		sqlThreadInit();
 	}
-
+	private void sqlThreadInit()
+	{
+		
+	}
+	
 	/**
 	 * Initialize the contents of the frame.
 	 */
 	private void initialize() {
 		frame = new JFrame();
 		frame.setMinimumSize(new Dimension(250, 250));
-		frame.setBounds(100, 100, 450, 300);
+		frame.setBounds(100, 100, 440, 313);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-		frame.getContentPane().setLayout(new GridLayout(0, 1, 0, 0));
+		frame.getContentPane().setLayout(null);
 		
 		JScrollPane scrollPane = new JScrollPane();
+		scrollPane.setBounds(0, 0, 428, 119);
 		frame.getContentPane().add(scrollPane);
-		table = new JTable(new AbstractTableModel() {
-			@Override
-			public void setValueAt(Object aValue, int rowIndex, int columnIndex)
-			{
-				System.out.println(String.format("setValueAt(%s,%d,%d)",
-												 aValue.toString(),
-												 rowIndex,
-												 columnIndex));
-			}
-			//me quedo con la implementacion por defecto que hace AbstractTableModel
-			//@Override
-			//public void removeTableModelListener(TableModelListener l)
-			//{
-			//	//????
-			//}
-			@Override
-			public boolean isCellEditable(int rowIndex, int columnIndex)
-			{
-				if( columnIndex == 0 )
-					return false;
-				return true;
-			}
-			@Override
-			public Object getValueAt(int rowIndex, int columnIndex)
-			{
-				// TODO Auto-generated method stub
-				return rowIndex + " " + columnIndex;
-			}
-			@Override
-			public int getRowCount() {
-				// TODO Auto-generated method stub
-				return 6;
-			}
-			@Override
-			public String getColumnName(int columnIndex) {
-				// TODO Auto-generated method stub
-				if( columnIndex == 0 )
-					return "Id";
-				if( columnIndex == 1 )
-					return "Temp";
-				if( columnIndex == 2 )
-					return "Hum";
-				if( columnIndex == 3 )
-					return "Presion";
-				return "";
-			}
-			@Override
-			public int getColumnCount() {
-				// TODO Auto-generated method stub
-				return 4;
-			}
-			@Override
-			public Class<?> getColumnClass(int columnIndex) {
-				// TODO Auto-generated method stub
-//				if( columnIndex == 0 )
-//					return Integer.class;
-				return String.class;
-			}
-			//dejo la implementacion por defecto
-			//@Override
-			//public void addTableModelListener(TableModelListener l)
-			//{
-			//	//????
-			//}
-		});
+		tableModel = new CustomTableModel();
+		table = new JTable(tableModel);
 		table.setBounds(25, 25, 250, 100);
 		table.getTableHeader().setDefaultRenderer(new TableCellRenderer()
 		{
@@ -217,36 +168,229 @@ public class GuiWIn {
 				return cell;
 			}
 		});
-/*		table.setDefaultRenderer(Integer.class, new TableCellRenderer()
-		{
-			@Override
-			public Component getTableCellRendererComponent(
-								JTable table,
-								Object value,
-								boolean isSelected,
-								boolean hasFocus,
-								int row,
-								int column)
-			{
-				JLabel cell = new JLabel(value.toString());
-				cell.setOpaque(true);
-				if( !isSelected)
-				{
-					cell.setForeground(Color.BLUE);
-					if( row % 2 == 0 )
-						cell.setBackground(Color.LIGHT_GRAY);
-				}
-				else
-				{
-					cell.setForeground(Color.RED);
-					cell.setBackground(new Color(0,0,255,100));
-					if( hasFocus )
-						cell.setBorder(BorderFactory.createLineBorder(Color.GREEN,2));
-				}
-				return cell;
-			}
-		});*/
 
 		scrollPane.setViewportView(table);
+		
+		JLabel lblHost = new JLabel("Host");
+		lblHost.setBounds(10, 131, 70, 15);
+		frame.getContentPane().add(lblHost);
+		
+		JLabel lblTcpport = new JLabel("TcpPort");
+		lblTcpport.setBounds(10, 159, 70, 15);
+		frame.getContentPane().add(lblTcpport);
+		
+		JLabel lblUser = new JLabel("User");
+		lblUser.setBounds(10, 186, 70, 15);
+		frame.getContentPane().add(lblUser);
+		
+		JLabel lblPass = new JLabel("Pass");
+		lblPass.setBounds(10, 213, 70, 15);
+		frame.getContentPane().add(lblPass);
+		
+		JLabel lblDatabase = new JLabel("DataBase");
+		lblDatabase.setBounds(10, 236, 70, 15);
+		frame.getContentPane().add(lblDatabase);
+		
+		txtHost = new JTextField();
+		txtHost.setText("localhost");
+		txtHost.setBounds(98, 131, 114, 19);
+		frame.getContentPane().add(txtHost);
+		txtHost.setColumns(10);
+		
+		txtPort = new JTextField();
+		txtPort.setText("3306");
+		txtPort.setBounds(98, 157, 114, 19);
+		frame.getContentPane().add(txtPort);
+		txtPort.setColumns(10);
+		
+		txtUser = new JTextField();
+		txtUser.setText("damian");
+		txtUser.setBounds(98, 184, 114, 19);
+		frame.getContentPane().add(txtUser);
+		txtUser.setColumns(10);
+		
+		txtPass = new JPasswordField();
+		txtPass.setBounds(98, 211, 114, 19);
+		frame.getContentPane().add(txtPass);
+		
+		txtDB = new JTextField();
+		txtDB.setText("diplo_db");
+		txtDB.setBounds(98, 234, 114, 19);
+		frame.getContentPane().add(txtDB);
+		txtDB.setColumns(10);
+		
+		JButton btnConnect = new JButton("Connect");
+		btnConnect.setAction(action);
+		btnConnect.setBounds(263, 126, 117, 25);
+		frame.getContentPane().add(btnConnect);
+		
+		JButton btnUpdate = new JButton("Update");
+		btnUpdate.setAction(action_1);
+		btnUpdate.setBounds(263, 181, 117, 25);
+		frame.getContentPane().add(btnUpdate);
+	}
+	private class SwingAction extends AbstractAction {
+		public SwingAction() {
+			putValue(NAME, "Connect");
+			putValue(SHORT_DESCRIPTION, "Try connection to DB");
+		}
+		public void actionPerformed(ActionEvent e)
+		{
+			System.out.println(String.format("%s:%s/%s (user: %s)",txtHost.getText(),txtPort.getText(),txtDB.getText(),txtUser.getText()));
+			try
+			{
+				String url = String.format("jdbc:mysql://%s:%s/%s",
+										   txtHost.getText(),
+										   txtPort.getText(),
+										   txtDB.getText());
+				sqlConn = DriverManager.getConnection(url,
+													  txtUser.getText(),
+													  new String(txtPass.getPassword()));
+				sqlSt   = sqlConn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,
+												  ResultSet.CONCUR_READ_ONLY);
+				/*				
+				//test connection
+				ResultSet result = sqlSt.executeQuery("SELECT * FROM meteo;");
+				int colCount = result.getMetaData().getColumnCount();
+				
+				//imprimo headers
+				for( int col=1 ; col<=colCount ; col++ )
+				{
+					var colName = result.getMetaData().getColumnName(col);
+					var colType = result.getMetaData().getColumnTypeName(col);
+					System.out.print(String.format("%s(%s)\t",colName,colType));
+//					System.out.print(colName+"("+colType+")"+"\t");
+				}
+				System.out.println();
+
+				//imprimo datos
+				while( result.next() )
+				{
+					for( int col=1 ; col<=colCount ; col++ )
+						System.out.print(result.getString(col) + "\t");
+					System.out.println();
+				}*/
+			}
+			catch (SQLException e1)
+			{
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			}
+		}
+	}
+	private class SwingAction_1 extends AbstractAction {
+		public SwingAction_1() {
+			putValue(NAME, "Update");
+			putValue(SHORT_DESCRIPTION, "Execute sql Query");
+		}
+		public void actionPerformed(ActionEvent e)
+		{
+			try
+			{
+				sqlResult = sqlSt.executeQuery("SELECT * FROM meteo;");
+				int colCount = sqlResult.getMetaData().getColumnCount();
+				
+				//aloco memoria para colNamesCache (ahora que se cuantas columnas tengo)
+				colNamesCache = new String[colCount];
+				//cargo los header names de la tabla
+				for( int col=1 ; col<=colCount ; col++ )
+					colNamesCache[col-1] = sqlResult.getMetaData().getColumnName(col);
+				
+				//cargo los datos (filas y col)
+				int rowCount = 0;
+				while( sqlResult.next() )
+					rowCount++;
+//					for( int col=1 ; col<=colCount ; col++ )
+//						System.out.print(result.getString(col) + "\t");
+//					System.out.println();
+				
+				//ahora aloco dataCache
+				dataCache = new String[rowCount][colCount];
+				sqlResult.beforeFirst();
+				
+//				for( int row=0 ; row<rowCount ; row++ )
+//				{
+//					sqlResult.next();
+//					for( int col=1 ; col<=colCount ; col++ )
+//						dataCache[row][col-1] =  sqlResult.getString(col);
+//				}
+				int row = 0;
+				while( sqlResult.next() )
+				{
+					for( int col=1 ; col<=colCount ; col++ )
+					{
+						dataCache[row][col-1] =  sqlResult.getString(col);
+						System.out.println(dataCache[row][col-1]);
+					}
+					row++;
+				}
+//				tableModel.fireTableStructureChanged();
+				((AbstractTableModel)table.getModel()).fireTableStructureChanged();
+			}
+			catch (SQLException e1)
+			{
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			}
+		}
+	}
+	private class CustomTableModel extends AbstractTableModel
+	{
+		@Override
+		public void setValueAt(Object aValue, int rowIndex, int columnIndex)
+		{
+			System.out.println(String.format("setValueAt(%s,%d,%d)",
+											 aValue.toString(),
+											 rowIndex,
+											 columnIndex));
+			dataCache[rowIndex][columnIndex] = aValue.toString();
+		}
+		//me quedo con la implementacion por defecto que hace AbstractTableModel
+		//@Override
+		//public void removeTableModelListener(TableModelListener l)
+		//{
+		//	//????
+		//}
+		@Override
+		public boolean isCellEditable(int rowIndex, int columnIndex)
+		{
+			if( columnIndex == 0 )
+				return false;
+			return true;
+		}
+		@Override
+		public Object getValueAt(int rowIndex, int columnIndex) {
+			return dataCache[rowIndex][columnIndex];
+		}
+		@Override
+		public int getRowCount() {
+			if( dataCache == null )
+				return 0;
+			return dataCache.length;
+		}
+		@Override
+		public String getColumnName(int columnIndex) {
+			return colNamesCache[columnIndex];
+		}
+		@Override
+		public int getColumnCount() {
+			if( dataCache == null )
+				return 0;
+			int colCount = colNamesCache.length;
+			return colCount;
+		}
+		@Override
+		public Class<?> getColumnClass(int columnIndex) {
+			// TODO Auto-generated method stub
+//			if( columnIndex == 0 )
+//				return Integer.class;
+			return String.class;
+		}
+		//dejo la implementacion por defecto
+		//@Override
+		//public void addTableModelListener(TableModelListener l)
+		//{
+		//	//????
+		//}
 	}
 }
